@@ -1,8 +1,6 @@
 import streamlit as st
 from PIL import Image
-from io import BytesIO
 from transformers import GPT2TokenizerFast, ViTImageProcessor, VisionEncoderDecoderModel
-from gtts import gTTS
 
 # Load a fine-tuned image captioning model and corresponding tokenizer and image processor
 model = VisionEncoderDecoderModel.from_pretrained("nlpconnect/vit-gpt2-image-captioning")
@@ -12,7 +10,7 @@ image_processor = ViTImageProcessor.from_pretrained("nlpconnect/vit-gpt2-image-c
 # Function to generate caption from an uploaded image
 def generate_caption(image):
     try:
-        # Process the image and create pixel values and attention mask
+        # Process the image and create pixel values
         pixel_values = image_processor(image, return_tensors="pt").pixel_values
         
         # Generate caption ids
@@ -26,7 +24,7 @@ def generate_caption(image):
 
 # Streamlit app
 def main():
-    st.title("Image Captioning with Text-to-Speech")
+    st.title("Image Captioning")
 
     # Upload file input
     uploaded_file = st.file_uploader("Upload an image", type=["jpg", "jpeg", "png"])
@@ -44,17 +42,6 @@ def main():
             caption = generate_caption(image)
             st.write("Caption:")
             st.write(caption)
-
-            # Option to listen to the caption audio
-            if st.button("Listen to Caption Audio"):
-                try:
-                    tts = gTTS(caption, lang='en')
-                    audio_file = BytesIO()
-                    tts.write_to_fp(audio_file)
-                    audio_file.seek(0)
-                    st.audio(audio_file, format="audio/mp3")
-                except Exception as e:
-                    st.error(f"Error generating audio: {str(e)}")
         else:
             st.warning("Please upload an image.")
 
