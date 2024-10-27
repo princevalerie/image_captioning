@@ -3,4 +3,3 @@ requests
 Pillow
 transformers
 torch
-gtts
