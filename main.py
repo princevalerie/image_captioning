@@ -1,39 +1,41 @@
 import streamlit as st
-import torch
-from transformers import VisionEncoderDecoderModel, AutoTokenizer, AutoFeatureExtractor
+from transformers import VisionEncoderDecoderModel, GPT2TokenizerFast, ViTImageProcessor
 from PIL import Image
-import requests
+import torch
 
-# Load the model and tokenizer
-model_name = "nlpconnect/vit-gpt2-image-captioning"
-model = VisionEncoderDecoderModel.from_pretrained(model_name)
-tokenizer = AutoTokenizer.from_pretrained(model_name)
-feature_extractor = AutoFeatureExtractor.from_pretrained(model_name)
+# Load the pre-trained model, tokenizer, and image processor
+model = VisionEncoderDecoderModel.from_pretrained("nlpconnect/vit-gpt2-image-captioning")
+tokenizer = GPT2TokenizerFast.from_pretrained("nlpconnect/vit-gpt2-image-captioning")
+image_processor = ViTImageProcessor.from_pretrained("nlpconnect/vit-gpt2-image-captioning")
 
-# Configure model to avoid warnings
-if hasattr(model.config, "pad_token_id") and model.config.pad_token_id is None:
-    model.config.pad_token_id = tokenizer.eos_token_id
+# Set the model to evaluation mode
+model.eval()
+
+# Function to generate caption
+def generate_caption(image):
+    # Process the image
+    pixel_values = image_processor(images=image, return_tensors="pt").pixel_values
+    # Generate the caption
+    with torch.no_grad():
+        output = model.generate(pixel_values, max_length=16)
+    # Decode the output caption
+    caption = tokenizer.decode(output[0], skip_special_tokens=True)
+    return caption
 
 # Streamlit app
 st.title("Image Captioning App")
-st.write("Upload an image and get a caption generated.")
+st.write("Upload an image to generate a caption.")
 
+# File uploader for images
 uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png"])
 
-def predict_caption(image):
-    # Preprocess the image
-    image = feature_extractor(images=image, return_tensors="pt").pixel_values
-
-    # Generate the caption
-    generated_ids = model.generate(image, max_length=50, num_beams=4, no_repeat_ngram_size=2)
-    caption = tokenizer.decode(generated_ids[0], skip_special_tokens=True)
-    
-    return caption
-
 if uploaded_file is not None:
-    image = Image.open(uploaded_file).convert("RGB")
-    st.image(image, caption="Uploaded Image", use_column_width=True)
+    # Open and display the image
+    image = Image.open(uploaded_file)
+    st.image(image, caption='Uploaded Image', use_column_width=True)
 
-    # Predict the caption
-    caption = predict_caption(image)
-    st.write(f"**Generated Caption:** {caption}")
+    # Generate and display the caption
+    if st.button("Generate Caption"):
+        caption = generate_caption(image)
+        st.write("Generated Caption:")
+        st.write(caption)
