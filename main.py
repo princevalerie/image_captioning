@@ -12,8 +12,13 @@ image_processor = ViTImageProcessor.from_pretrained("nlpconnect/vit-gpt2-image-c
 # Function to generate caption from an uploaded image
 def generate_caption(image):
     try:
+        # Process the image and create pixel values and attention mask
         pixel_values = image_processor(image, return_tensors="pt").pixel_values
-        generated_ids = model.generate(pixel_values)
+        
+        # Generate caption ids
+        generated_ids = model.generate(pixel_values, attention_mask=None)  # You can specify attention_mask if needed
+
+        # Decode the generated caption
         generated_text = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0]
         return generated_text
     except Exception as e:
@@ -59,4 +64,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
