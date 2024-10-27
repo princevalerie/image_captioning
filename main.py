@@ -1,53 +1,58 @@
 import streamlit as st
-import torch
-from transformers import VisionEncoderDecoderModel, ViTImageProcessor, AutoTokenizer
-from PIL import Image
 import requests
+from PIL import Image
+from io import BytesIO
+from transformers import GPT2TokenizerFast, ViTImageProcessor, VisionEncoderDecoderModel
+from gtts import gTTS
 
-# Load model, processor, and tokenizer
+# Load a fine-tuned image captioning model and corresponding tokenizer and image processor
 model = VisionEncoderDecoderModel.from_pretrained("nlpconnect/vit-gpt2-image-captioning")
-feature_extractor = ViTImageProcessor.from_pretrained("nlpconnect/vit-gpt2-image-captioning")
-tokenizer = AutoTokenizer.from_pretrained("nlpconnect/vit-gpt2-image-captioning")
+tokenizer = GPT2TokenizerFast.from_pretrained("nlpconnect/vit-gpt2-image-captioning")
+image_processor = ViTImageProcessor.from_pretrained("nlpconnect/vit-gpt2-image-captioning")
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model.to(device)
-
-# Function to generate captions with attention mask
-def generate_caption(image, max_length=16, num_beams=4):
-    # Preprocess the image
-    pixel_values = feature_extractor(images=image, return_tensors="pt").pixel_values
-    pixel_values = pixel_values.to(device)
-
-    # Generate attention mask
-    attention_mask = torch.ones(pixel_values.shape[:2], dtype=torch.long, device=device)
-
-    # Generate the output sequence
-    output_ids = model.generate(
-        pixel_values,
-        attention_mask=attention_mask,
-        max_length=max_length,
-        num_beams=num_beams,
-        early_stopping=True
-    )
-
-    # Decode the generated sequence
-    caption = tokenizer.decode(output_ids[0], skip_special_tokens=True)
-    return caption
+# Function to generate caption from image URL
+def generate_caption(image_url):
+    try:
+        image = Image.open(requests.get(image_url, stream=True).raw)
+        pixel_values = image_processor(image, return_tensors="pt").pixel_values
+        generated_ids = model.generate(pixel_values)
+        generated_text = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0]
+        return generated_text
+    except Exception as e:
+        return str(e)
 
 # Streamlit app
-st.title("Image Captioning with Attention Mask")
-st.write("Upload an image and the model will generate a caption for it.")
+def main():
+    st.title("Image Captioning with Text-to-Speech")
 
-uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png"])
+    # Input image URL
+    image_url = st.text_input("Enter Image URL:")
 
-if uploaded_file is not None:
-    # Open the image file
-    image = Image.open(uploaded_file)
+    # "Generate Caption" button
+    if st.button("Generate Caption"):
+        if image_url:
+            # Generate caption
+            caption = generate_caption(image_url)
+            st.write("Caption:")
+            st.write(caption)
 
-    # Display the image
-    st.image(image, caption="Uploaded Image", use_column_width=True)
+            # Option to listen to the caption audio
+            if st.button("Listen to Caption Audio"):
+                try:
+                    tts = gTTS(caption, lang='en')
+                    audio_file = BytesIO()
+                    tts.write_to_fp(audio_file)
+                    audio_file.seek(0)
+                    st.audio(audio_file, format="audio/mp3")
+                except Exception as e:
+                    st.error(f"Error generating audio: {str(e)}")
 
-    # Generate caption
-    with st.spinner("Generating caption..."):
-        caption = generate_caption(image)
-        st.write("Generated Caption:", caption)
+        else:
+            st.warning("Please enter an image URL.")
+
+    # "Refresh" button
+    if st.button("Refresh"):
+        st.experimental_rerun()
+
+if __name__ == "__main__":
+    main()
