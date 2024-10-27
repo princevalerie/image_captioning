@@ -1,5 +1,4 @@
 import streamlit as st
-import requests
 from PIL import Image
 from io import BytesIO
 from transformers import GPT2TokenizerFast, ViTImageProcessor, VisionEncoderDecoderModel
@@ -10,10 +9,9 @@ model = VisionEncoderDecoderModel.from_pretrained("nlpconnect/vit-gpt2-image-cap
 tokenizer = GPT2TokenizerFast.from_pretrained("nlpconnect/vit-gpt2-image-captioning")
 image_processor = ViTImageProcessor.from_pretrained("nlpconnect/vit-gpt2-image-captioning")
 
-# Function to generate caption from image URL
-def generate_caption(image_url):
+# Function to generate caption from an uploaded image
+def generate_caption(image):
     try:
-        image = Image.open(requests.get(image_url, stream=True).raw)
         pixel_values = image_processor(image, return_tensors="pt").pixel_values
         generated_ids = model.generate(pixel_values)
         generated_text = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0]
@@ -25,14 +23,20 @@ def generate_caption(image_url):
 def main():
     st.title("Image Captioning with Text-to-Speech")
 
-    # Input image URL
-    image_url = st.text_input("Enter Image URL:")
+    # Upload file input
+    uploaded_file = st.file_uploader("Upload an image", type=["jpg", "jpeg", "png"])
 
     # "Generate Caption" button
     if st.button("Generate Caption"):
-        if image_url:
+        if uploaded_file is not None:
+            # Open the uploaded image
+            image = Image.open(uploaded_file)
+
+            # Display the uploaded image
+            st.image(image, caption="Uploaded Image", use_column_width=True)
+
             # Generate caption
-            caption = generate_caption(image_url)
+            caption = generate_caption(image)
             st.write("Caption:")
             st.write(caption)
 
@@ -46,9 +50,8 @@ def main():
                     st.audio(audio_file, format="audio/mp3")
                 except Exception as e:
                     st.error(f"Error generating audio: {str(e)}")
-
         else:
-            st.warning("Please enter an image URL.")
+            st.warning("Please upload an image.")
 
     # "Refresh" button
     if st.button("Refresh"):
@@ -56,3 +59,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
